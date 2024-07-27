@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import tkinter as tk
 from tkinter import ttk
-from tkinter import simpledialog, messagebox
+from tkinter import simpledialog, messagebox, filedialog
 
 def read_competitors_from_txt(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -84,7 +84,7 @@ def show_data_in_window(df):
     count_1, count_2, count_3 = count_priorities(df)
 
     # Відображення кількості пунктів списку
-    count_label = ttk.Label(window, text=f"Кількість пунктів списку з пріоритетом 1: {count_1}, з пріоритетом 2: {count_2}, з пріоритетом 3: {count_3}")
+    count_label = ttk.Label(window, text=f"Кількість пунктів списку з пріоритетом 1: {count_1}, з пріоритетом 2: {count_2}, з пріоритетом 3: {count_3}, загалом конкурентів {len(df)}")
     count_label.pack()
 
     # Запуск основного циклу Tkinter
@@ -101,46 +101,31 @@ def main():
     root = tk.Tk()
     root.withdraw()  # Приховати основне вікно
 
-    # Отримання шляху до поточної папки
-    current_directory = os.path.dirname(os.path.abspath(__file__))
+    # Відкрити файловий менеджер для вибору файлу
+    selected_file = filedialog.askopenfilename(
+        title="Виберіть файл зі списком абітурієнтів",
+        filetypes=[("Text files", "*.txt")],
+        initialdir=os.path.dirname(os.path.abspath(__file__))
+    )
 
-    # Отримання списку всіх txt файлів у поточній папці
-    txt_files = [f for f in os.listdir(current_directory) if f.endswith('.txt')]
-
-    if not txt_files:
-        messagebox.showerror("Помилка", "Не знайдено цього файлу в цій діректорії.")
+    if not selected_file:
+        messagebox.showerror("Помилка", "Файл не було обрано.")
         return
 
-    # Створення вікна для вибору файлу
-    file_selection_window = tk.Tk()
-    file_selection_window.title("Виберіть файл зі списком абітурієнтів")
-    center_window(file_selection_window, 430, 100)
+    # Запит кількості балів у користувача
+    user_score = simpledialog.askfloat("Ваші бали", "Введіть ваш конкурсний бал:")
 
-    # Випадаючий список з файлами
-    file_var = tk.StringVar(value=txt_files[0])
-    file_combobox = ttk.Combobox(file_selection_window, textvariable=file_var, values=txt_files, state='readonly')
-    file_combobox.pack(pady=10)
+    if user_score is None:  # Користувач натиснув "Скасувати"
+        return
 
-    def on_submit():
-        selected_file = file_var.get()
-        file_selection_window.destroy()
-        # Запит кількості балів у користувача
-        user_score = simpledialog.askfloat("Ваші бали", "Введіть ваш конкурсний бал:")
+    # Читання даних з файлу
+    competitors_df = read_competitors_from_txt(selected_file)
 
-        # Читання даних з файлу
-        file_path = os.path.join(current_directory, selected_file)
-        competitors_df = read_competitors_from_txt(file_path)
+    # Фільтрація конкурентів
+    filtered_competitors = filter_competitors(competitors_df, user_score)
 
-        # Фільтрація конкурентів
-        filtered_competitors = filter_competitors(competitors_df, user_score)
-
-        # Показ даних у вікні Tkinter
-        show_data_in_window(filtered_competitors)
-
-    submit_button = ttk.Button(file_selection_window, text="Обрати", command=on_submit)
-    submit_button.pack(pady=10)
-
-    file_selection_window.mainloop()
+    # Показ даних у вікні Tkinter
+    show_data_in_window(filtered_competitors)
 
 if __name__ == "__main__":
     main()
