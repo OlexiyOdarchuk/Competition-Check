@@ -1,8 +1,17 @@
 import os
 import pandas as pd
 import tkinter as tk
-from tkinter import ttk
-from tkinter import simpledialog, messagebox, filedialog
+from tkinter import ttk, simpledialog, messagebox, filedialog
+import webbrowser
+
+def validate_file(file_path):
+    if not os.path.isfile(file_path):
+        messagebox.showerror("Помилка", "Обраний файл не існує.")
+        return False
+    if not file_path.endswith('.txt'):
+        messagebox.showerror("Помилка", "Обраний файл не є текстовим файлом.")
+        return False
+    return True
 
 def read_competitors_from_txt(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -34,54 +43,116 @@ def read_competitors_from_txt(file_path):
         
         data.append([rank, name, status, priority, score])
         
-    df = pd.DataFrame(data, columns=['Rank', 'Name', 'Status', 'Priority', 'Score'])
-    df = df.sort_values(by='Priority')
+    df = pd.DataFrame(data, columns=['Ранг', 'Ім\'я', 'Статус', 'Пріоритет', 'Бали'])
+    df = df.sort_values(by='Пріоритет')
+    
+    # Додавання колонки з посиланнями
+    df['Посилання'] = df['Ім\'я'].apply(generate_link)
     return df
 
-def filter_competitors(df, user_score):
-    valid_statuses = ['Допущено', 'Заява надійшла з сайту', 'Зареєстровано']
+def generate_link(name):
+    parts = name.split()
+    if len(parts) < 3:
+        return ""
+    surname = parts[0]
+    first_initial = parts[1][0]
+    middle_initial = parts[2][0]
+    return f"https://abit-poisk.org.ua/#search-{surname}+{first_initial}+{middle_initial}"
+
+def filter_competitors(df, user_score, status_list=None, max_priority=3):
+    if status_list is None:
+        status_list = ['Допущено', 'Заява надійшла з сайту', 'Зареєстровано']
+    
     filtered_df = df[
-        (df['Status'].isin(valid_statuses)) &
-        (df['Score'] >= user_score) &
-        (df['Priority'].apply(lambda x: x.isdigit() and int(x) <= 3))
+        (df['Статус'].isin(status_list)) &
+        (df['Бали'] >= user_score) &
+        (df['Пріоритет'].apply(lambda x: x.isdigit() and int(x) <= max_priority))
     ]
     return filtered_df
 
 def count_priorities(df):
-    priority_counts = df['Priority'].value_counts()
+    priority_counts = df['Пріоритет'].value_counts()
     count_1 = priority_counts.get('1', 0)
     count_2 = priority_counts.get('2', 0)
     count_3 = priority_counts.get('3', 0)
     return count_1, count_2, count_3
 
+def open_link(event):
+    item = tree.selection()[0]
+    name = tree.item(item, "values")[2]  # Ім'я знаходиться в другому стовпчику
+    link = generate_link(name)
+    if link:
+        webbrowser.open(link)
+
+def save_filtered_data(df, original_file_name):
+    filtered_file_name = f"{os.path.splitext(original_file_name)[0]}_filtered.txt"
+    df.to_csv(filtered_file_name, sep='\t', index=False, encoding='utf-8')
+    messagebox.showinfo("Збереження", f"Відфільтрований список збережено у файл {filtered_file_name}")
+
+def export_to_format(df, original_file_name, file_format):
+    file_name = f"{os.path.splitext(original_file_name)[0]}_filtered"
+    if file_format == "Excel":
+        df.to_excel(f"{file_name}.xlsx", index=False)
+    elif file_format == "CSV":
+        df.to_csv(f"{file_name}.csv", index=False)
+    messagebox.showinfo("Експорт", f"Дані успішно експортовано у файл {file_name}.{file_format.lower()}")
+
+def calculate_statistics(df):
+    average_score = df['Бали'].mean()
+    max_score = df['Бали'].max()
+    min_score = df['Бали'].min()
+    messagebox.showinfo("Статистика", f"Середній бал: {average_score:.2f}\nМаксимальний бал: {max_score}\nМінімальний бал: {min_score}")
+
+def add_menu(window, df, original_file_name):
+    menu_bar = tk.Menu(window)
+    file_menu = tk.Menu(menu_bar, tearoff=0)
+    file_menu.add_command(label="Експорт в txt", command=lambda: save_filtered_data(df, original_file_name))
+    file_menu.add_command(label="Експортувати в CSV", command=lambda: export_to_format(df, original_file_name, "CSV"))
+    file_menu.add_separator()
+    file_menu.add_command(label="Підрахувати статистику", command=lambda: calculate_statistics(df))
+    menu_bar.add_cascade(label="Файл", menu=file_menu)
+    window.config(menu=menu_bar)
+
+def add_search(frame, tree):
+    def search_tree(event=None):
+        search_term = search_entry.get()
+        for item in tree.get_children():
+            values = tree.item(item, "values")
+            if any(search_term.lower() in str(value).lower() for value in values):
+                tree.selection_set(item)
+                tree.see(item)
+                break
+
+    search_label = ttk.Label(frame, text="Пошук:")
+    search_label.pack(side=tk.LEFT, padx=5)
+    search_entry = ttk.Entry(frame)
+    search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+    search_entry.bind('<Return>', search_tree)
+    search_button = ttk.Button(frame, text="Шукати", command=search_tree)
+    search_button.pack(side=tk.LEFT, padx=5)
+
 def show_data_in_window(df, original_file_name):
-    # Створення вікна
+    global tree
     window = tk.Tk()
     window.title("Перевірка конкуренції")
-
-    # Встановлення розміру вікна на весь екран
     window.geometry("{0}x{1}+0+0".format(window.winfo_screenwidth(), window.winfo_screenheight()))
-
-    # Додавання фрейму для таблиці та повзунка
+    
+    menu_frame = ttk.Frame(window)
+    menu_frame.pack(side=tk.TOP, fill=tk.X)
     frame = ttk.Frame(window)
     frame.pack(expand=True, fill='both')
 
-    # Додавання стовпця для власної нумерації
-    df.insert(0, 'No.', range(1, len(df) + 1))
+    df.insert(0, '№', range(1, len(df) + 1))
 
-    # Створення таблиці для відображення даних
     tree = ttk.Treeview(frame, columns=list(df.columns), show='headings')
-    
-    # Налаштування стовпців
     for col in df.columns:
         tree.heading(col, text=col)
         tree.column(col, width=100)
 
-    # Додавання даних до таблиці
     for index, row in df.iterrows():
-        tree.insert('', 'end', values=list(row))
+        values = list(row)
+        tree.insert('', 'end', values=values)
 
-    # Додавання вертикального повзунка для прокрутки таблиці
     vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
     tree.configure(yscrollcommand=vsb.set)
     tree.grid(row=0, column=0, sticky='nsew')
@@ -89,37 +160,23 @@ def show_data_in_window(df, original_file_name):
     frame.grid_rowconfigure(0, weight=1)
     frame.grid_columnconfigure(0, weight=1)
 
-    # Підрахунок кількості пунктів з різними пріоритетами
-    count_1, count_2, count_3 = count_priorities(df)
+    tree.bind('<Double-1>', open_link)
 
-    # Відображення кількості пунктів списку
+    count_1, count_2, count_3 = count_priorities(df)
     count_label = ttk.Label(window, text=f"Кількість пунктів списку з пріоритетом 1: {count_1}, з пріоритетом 2: {count_2}, з пріоритетом 3: {count_3}, загалом конкурентів {len(df)}")
     count_label.pack()
 
-    # Додавання кнопки для збереження відфільтрованих даних
-    def save_filtered_data():
-        filtered_file_name = f"{os.path.splitext(original_file_name)[0]}_filtered.txt"
-        df.to_csv(filtered_file_name, sep='\t', index=False, encoding='utf-8')
-        messagebox.showinfo("Збереження", f"Відфільтрований список збережено у файл {filtered_file_name}")
+    add_menu(window, df, original_file_name)
+    add_search(menu_frame, tree)  # Додавання поля пошуку до верхньої частини вікна
 
-    save_button = ttk.Button(window, text="Зберегти відфільтрований список", command=save_filtered_data)
-    save_button.pack()
+    window.protocol("WM_DELETE_WINDOW", window.quit)  # Виклик завершення основного циклу при закритті вікна
 
-    # Запуск основного циклу Tkinter
     window.mainloop()
-
-def center_window(window, width, height):
-    window.geometry(f'{width}x{height}')
-    window.update_idletasks()
-    x = (window.winfo_screenwidth() // 2) - (width // 2)
-    y = (window.winfo_screenheight() // 2) - (height // 2)
-    window.geometry(f'+{x}+{y}')
 
 def main():
     root = tk.Tk()
     root.withdraw()  # Приховати основне вікно
 
-    # Відкрити файловий менеджер для вибору файлу
     selected_file = filedialog.askopenfilename(
         title="Виберіть файл зі списком абітурієнтів",
         filetypes=[("Text files", "*.txt")],
@@ -130,19 +187,17 @@ def main():
         messagebox.showerror("Помилка", "Файл не було обрано.")
         return
 
-    # Запит кількості балів у користувача
+    if not validate_file(selected_file):
+        return
+
     user_score = simpledialog.askfloat("Ваші бали", "Введіть ваш конкурсний бал:")
 
     if user_score is None:  # Користувач натиснув "Скасувати"
         return
 
-    # Читання даних з файлу
+    status_list = ['Допущено', 'Заява надійшла з сайту', 'Зареєстровано']
     competitors_df = read_competitors_from_txt(selected_file)
-
-    # Фільтрація конкурентів
-    filtered_competitors = filter_competitors(competitors_df, user_score)
-
-    # Показ даних у вікні Tkinter
+    filtered_competitors = filter_competitors(competitors_df, user_score, status_list)
     show_data_in_window(filtered_competitors, os.path.basename(selected_file))
 
 if __name__ == "__main__":
