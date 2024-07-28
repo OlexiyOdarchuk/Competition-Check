@@ -106,7 +106,7 @@ def calculate_statistics(df):
 def add_menu(window, df, original_file_name):
     menu_bar = tk.Menu(window)
     file_menu = tk.Menu(menu_bar, tearoff=0)
-    file_menu.add_command(label="Експорт в txt", command=lambda: save_filtered_data(df, original_file_name))
+    file_menu.add_command(label="Експортувати в TXT", command=lambda: save_filtered_data(df, original_file_name))
     file_menu.add_command(label="Експортувати в CSV", command=lambda: export_to_format(df, original_file_name, "CSV"))
     file_menu.add_separator()
     file_menu.add_command(label="Підрахувати статистику", command=lambda: calculate_statistics(df))
