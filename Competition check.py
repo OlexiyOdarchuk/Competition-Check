@@ -68,8 +68,6 @@ def generate_link(name):
     else:
         return f"https://abit-poisk.org.ua/#search-{surname}+{first_initial}"
 
-
-
 def filter_competitors(df, user_score, status_list=None, max_priority=3):
     if status_list is None:
         status_list = ['Допущено', 'Заява надійшла з сайту', 'Зареєстровано']
@@ -115,25 +113,82 @@ def calculate_statistics(df):
     all_post = len(df)
     count_1_post, count_2_post, count_3_post = count_priorities(df)
     messagebox.showinfo("Статистика",f"Середній бал: {average_score:.2f}\n Після фільтрації: {average_score_post:.2f}\nМаксимальний бал: {max_score}\n  Після фільтрації: {max_score_post}\nМінімальний бал: {min_score}\n  Після фільтрації: {min_score_post}\nЗаяв з першим пріоритетом: {count_1}\n  Після фільтрації: {count_1_post}\nЗаяв з другим пріоритетом: {count_2}\n  Після фільтрації: {count_2_post}\nЗаяв з третім пріоритетом: {count_3}\n  Після фільтрації: {count_3_post}\nЗагальна кількість заяв: {all}\n  Після фільтрації: {all_post}")
+
 def add_menu(window, df, original_file_name):
+    def restart():
+        window.destroy()
+        main()
+
+    def open_new_window():
+        new_window = tk.Toplevel(window)
+        selected_file = filedialog.askopenfilename(
+            title="Виберіть файл зі списком абітурієнтів",
+            filetypes=[("Text files", "*.txt")],
+            initialdir=os.path.dirname(os.path.abspath(__file__))
+        )
+
+        if not selected_file:
+            messagebox.showerror("Помилка", "Файл не було обрано.")
+            return
+
+        if not validate_file(selected_file):
+            return
+
+        user_score = simpledialog.askfloat("Ваші бали", "Введіть ваш конкурсний бал:")
+
+        if user_score is None:  # Користувач натиснув "Скасувати"
+            return
+
+        status_list = ['Допущено', 'Заява надійшла з сайту', 'Зареєстровано']
+        competitors_df = read_competitors_from_txt(selected_file)
+        filtered_competitors = filter_competitors(competitors_df, user_score, status_list)
+        show_data_in_window(filtered_competitors, os.path.basename(selected_file))
+
     menu_bar = tk.Menu(window)
     file_menu = tk.Menu(menu_bar, tearoff=0)
     file_menu.add_command(label="Експортувати в TXT", command=lambda: save_filtered_data(df, original_file_name))
     file_menu.add_command(label="Експортувати в CSV", command=lambda: export_to_format(df, original_file_name, "CSV"))
     file_menu.add_separator()
     file_menu.add_command(label="Підрахувати статистику", command=lambda: calculate_statistics(df))
+    file_menu.add_separator()
+    file_menu.add_command(label="Почати спочатку", command=restart)
+    file_menu.add_command(label="Відкрити новий файл", command=open_new_window)
     menu_bar.add_cascade(label="Файл", menu=file_menu)
     window.config(menu=menu_bar)
 
 def add_search(frame, tree):
+    search_results = []
+    current_index = -1
+
     def search_tree(event=None):
-        search_term = search_entry.get()
+        nonlocal current_index
+        search_term = search_entry.get().lower()
+        search_results.clear()
+        current_index = -1
+
         for item in tree.get_children():
             values = tree.item(item, "values")
-            if any(search_term.lower() in str(value).lower() for value in values):
-                tree.selection_set(item)
-                tree.see(item)
-                break
+            if any(search_term in str(value).lower() for value in values):
+                search_results.append(item)
+
+        if search_results:
+            current_index = 0
+            tree.selection_set(search_results[current_index])
+            tree.see(search_results[current_index])
+
+    def next_result():
+        nonlocal current_index
+        if search_results:
+            current_index = (current_index + 1) % len(search_results)
+            tree.selection_set(search_results[current_index])
+            tree.see(search_results[current_index])
+
+    def prev_result():
+        nonlocal current_index
+        if search_results:
+            current_index = (current_index - 1) % len(search_results)
+            tree.selection_set(search_results[current_index])
+            tree.see(search_results[current_index])
 
     search_label = ttk.Label(frame, text="Пошук:")
     search_label.pack(side=tk.LEFT, padx=5)
@@ -142,6 +197,10 @@ def add_search(frame, tree):
     search_entry.bind('<Return>', search_tree)
     search_button = ttk.Button(frame, text="Шукати", command=search_tree)
     search_button.pack(side=tk.LEFT, padx=5)
+    next_button = ttk.Button(frame, text="Наступний", command=next_result)
+    next_button.pack(side=tk.LEFT, padx=5)
+    prev_button = ttk.Button(frame, text="Попередній", command=prev_result)
+    prev_button.pack(side=tk.LEFT, padx=5)
 
 def show_data_in_window(df, original_file_name):
     global tree
@@ -177,36 +236,93 @@ def show_data_in_window(df, original_file_name):
     add_menu(window, df, original_file_name)
     add_search(menu_frame, tree)  # Додавання поля пошуку до верхньої частини вікна
 
+    bottom_frame = ttk.Frame(window)
+    bottom_frame.pack(side=tk.BOTTOM, fill=tk.X)
+
+    def restart():
+        window.destroy()
+        main()
+
+    def open_new_window():
+        new_window = tk.Toplevel(window)
+        selected_file = filedialog.askopenfilename(
+            title="Виберіть файл зі списком абітурієнтів",
+            filetypes=[("Text files", "*.txt")],
+            initialdir=os.path.dirname(os.path.abspath(__file__))
+        )
+
+        if not selected_file:
+            messagebox.showerror("Помилка", "Файл не було обрано.")
+            return
+
+        if not validate_file(selected_file):
+            return
+
+        user_score = simpledialog.askfloat("Ваші бали", "Введіть ваш конкурсний бал:")
+
+        if user_score is None:  # Користувач натиснув "Скасувати"
+            return
+
+        status_list = ['Допущено', 'Заява надійшла з сайту', 'Зареєстровано']
+        competitors_df = read_competitors_from_txt(selected_file)
+        filtered_competitors = filter_competitors(competitors_df, user_score, status_list)
+        show_data_in_window(filtered_competitors, os.path.basename(selected_file))
+
     window.protocol("WM_DELETE_WINDOW", window.quit)  # Виклик завершення основного циклу при закритті вікна
 
     window.mainloop()
 
 def main():
+    def start():
+        root.destroy()
+
+        selected_file = filedialog.askopenfilename(
+            title="Виберіть файл зі списком абітурієнтів",
+            filetypes=[("Text files", "*.txt")],
+            initialdir=os.path.dirname(os.path.abspath(__file__))
+        )
+
+        if not selected_file:
+            messagebox.showerror("Помилка", "Файл не було обрано.")
+            return
+
+        if not validate_file(selected_file):
+            return
+
+        user_score = simpledialog.askfloat("Ваші бали", "Введіть ваш конкурсний бал:")
+
+        if user_score is None:  # Користувач натиснув "Скасувати"
+            return
+
+        status_list = ['Допущено', 'Заява надійшла з сайту', 'Зареєстровано']
+        competitors_df = read_competitors_from_txt(selected_file)
+        filtered_competitors = filter_competitors(competitors_df, user_score, status_list)
+        show_data_in_window(filtered_competitors, os.path.basename(selected_file))
+
+    def exit_app():
+        root.destroy()
+
     root = tk.Tk()
-    root.withdraw()  # Приховати основне вікно
+    root.title("Вітання")
 
-    selected_file = filedialog.askopenfilename(
-        title="Виберіть файл зі списком абітурієнтів",
-        filetypes=[("Text files", "*.txt")],
-        initialdir=os.path.dirname(os.path.abspath(__file__))
-    )
+    description = ("Ласкаво просимо до програми перевірки конкуренції!\n\n"
+                   "Ця програма дозволяє вам завантажити текстовий файл зі списком абітурієнтів, "
+                   "відфільтрувати його за вашими балами, відкинути всіх, хто йде на контракт, чий пріоритет нижче 3, скасовані/відхилені заяви. Ви зможете переглянути результати у зручному вигляді. \nЦе зекономить багато вашого часу, який ви б потратили на ручну фільтрацію, тому бажаю вам гарно провести зекономлений час!\n\n"
+                   "Натисніть 'Почати', щоб завантажити файл і почати роботу, або 'Вийти', щоб закрити програму.")
 
-    if not selected_file:
-        messagebox.showerror("Помилка", "Файл не було обрано.")
-        return
+    label = tk.Label(root, text=description, wraplength=400, justify=tk.LEFT)
+    label.pack(padx=20, pady=20)
 
-    if not validate_file(selected_file):
-        return
+    button_frame = ttk.Frame(root)
+    button_frame.pack(pady=10)
 
-    user_score = simpledialog.askfloat("Ваші бали", "Введіть ваш конкурсний бал:")
+    start_button = ttk.Button(button_frame, text="Почати", command=start)
+    start_button.pack(side=tk.LEFT, padx=5)
 
-    if user_score is None:  # Користувач натиснув "Скасувати"
-        return
+    exit_button = ttk.Button(button_frame, text="Вийти", command=exit_app)
+    exit_button.pack(side=tk.LEFT, padx=5)
 
-    status_list = ['Допущено', 'Заява надійшла з сайту', 'Зареєстровано']
-    competitors_df = read_competitors_from_txt(selected_file)
-    filtered_competitors = filter_competitors(competitors_df, user_score, status_list)
-    show_data_in_window(filtered_competitors, os.path.basename(selected_file))
+    root.mainloop()
 
 if __name__ == "__main__":
     main()
