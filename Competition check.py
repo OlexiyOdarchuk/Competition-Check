@@ -44,20 +44,31 @@ def read_competitors_from_txt(file_path):
         data.append([rank, name, status, priority, score])
         
     df = pd.DataFrame(data, columns=['Ранг', 'Ім\'я', 'Статус', 'Пріоритет', 'Бали'])
-    df = df.sort_values(by='Пріоритет')
-    
+    df = df.sort_values(by='Пріоритет') #Сортування
+    #Додавання початкових статистик (пізніше це зробити нереально)
+    global min_score, max_score, average_score, count_1, count_2, count_3, all
+    average_score = df['Бали'].mean()
+    max_score = df['Бали'].max()
+    min_score = df['Бали'].min()
+    all = len(df)
+    count_1, count_2, count_3 = count_priorities(df)
     # Додавання колонки з посиланнями
     df['Посилання'] = df['Ім\'я'].apply(generate_link)
     return df
 
 def generate_link(name):
     parts = name.split()
-    if len(parts) < 3:
+    if len(parts) < 2:
         return ""
     surname = parts[0]
     first_initial = parts[1][0]
-    middle_initial = parts[2][0]
-    return f"https://abit-poisk.org.ua/#search-{surname}+{first_initial}+{middle_initial}"
+    if len(parts) > 2:
+        middle_initial = parts[2][0]
+        return f"https://abit-poisk.org.ua/#search-{surname}+{first_initial}+{middle_initial}"
+    else:
+        return f"https://abit-poisk.org.ua/#search-{surname}+{first_initial}"
+
+
 
 def filter_competitors(df, user_score, status_list=None, max_priority=3):
     if status_list is None:
@@ -98,11 +109,12 @@ def export_to_format(df, original_file_name, file_format):
     messagebox.showinfo("Експорт", f"Дані успішно експортовано у файл {file_name}.{file_format.lower()}")
 
 def calculate_statistics(df):
-    average_score = df['Бали'].mean()
-    max_score = df['Бали'].max()
-    min_score = df['Бали'].min()
-    messagebox.showinfo("Статистика", f"Середній бал: {average_score:.2f}\nМаксимальний бал: {max_score}\nМінімальний бал: {min_score}")
-
+    average_score_post = df['Бали'].mean()
+    max_score_post = df['Бали'].max()
+    min_score_post = df['Бали'].min()
+    all_post = len(df)
+    count_1_post, count_2_post, count_3_post = count_priorities(df)
+    messagebox.showinfo("Статистика",f"Середній бал: {average_score:.2f}\n Після фільтрації: {average_score_post:.2f}\nМаксимальний бал: {max_score}\n  Після фільтрації: {max_score_post}\nМінімальний бал: {min_score}\n  Після фільтрації: {min_score_post}\nЗаяв з першим пріоритетом: {count_1}\n  Після фільтрації: {count_1_post}\nЗаяв з другим пріоритетом: {count_2}\n  Після фільтрації: {count_2_post}\nЗаяв з третім пріоритетом: {count_3}\n  Після фільтрації: {count_3_post}\nЗагальна кількість заяв: {all}\n  Після фільтрації: {all_post}")
 def add_menu(window, df, original_file_name):
     menu_bar = tk.Menu(window)
     file_menu = tk.Menu(menu_bar, tearoff=0)
@@ -161,10 +173,6 @@ def show_data_in_window(df, original_file_name):
     frame.grid_columnconfigure(0, weight=1)
 
     tree.bind('<Double-1>', open_link)
-
-    count_1, count_2, count_3 = count_priorities(df)
-    count_label = ttk.Label(window, text=f"Кількість пунктів списку з пріоритетом 1: {count_1}, з пріоритетом 2: {count_2}, з пріоритетом 3: {count_3}, загалом конкурентів {len(df)}")
-    count_label.pack()
 
     add_menu(window, df, original_file_name)
     add_search(menu_frame, tree)  # Додавання поля пошуку до верхньої частини вікна
