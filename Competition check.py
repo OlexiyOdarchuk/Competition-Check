@@ -1,3 +1,18 @@
+# Copyright (c) 2024 iShawyha. All rights reserved.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
 import os
 import pandas as pd
 import tkinter as tk
@@ -16,7 +31,7 @@ def validate_file(file_path):
 def read_competitors_from_txt(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
         lines = file.readlines()
-    
+
     data = []
     i = 0
     while i < len(lines):
@@ -24,25 +39,25 @@ def read_competitors_from_txt(file_path):
         if len(main_info) < 5:
             i += 1  # Пропустити рядок, якщо він не містить достатньо даних
             continue
-        
+
         rank = int(main_info[0])
         name = main_info[1]
         status = main_info[2].strip()
         priority = main_info[3].strip()
-        
+
         score_str = main_info[4].strip().split()[0]
         try:
             score = float(score_str)  # Витягування балу
         except ValueError:
             score = None  # Або можна використати інше значення за замовчуванням, наприклад 0.0
-        
+
         # Пропуск рядка з "розрахунок" та інших деталей
         i += 1
         while i < len(lines) and lines[i].strip() and not lines[i].strip().isdigit():
             i += 1
-        
+
         data.append([rank, name, status, priority, score])
-        
+
     df = pd.DataFrame(data, columns=['Ранг', 'Ім\'я', 'Статус', 'Пріоритет', 'Бали'])
     df = df.sort_values(by='Пріоритет') #Сортування
     #Додавання початкових статистик (пізніше це зробити нереально)
@@ -71,7 +86,7 @@ def generate_link(name):
 def filter_competitors(df, user_score, status_list=None, max_priority=3):
     if status_list is None:
         status_list = ['Допущено', 'Заява надійшла з сайту', 'Зареєстровано']
-    
+
     filtered_df = df[
         (df['Статус'].isin(status_list)) &
         (df['Бали'] >= user_score) &
@@ -207,7 +222,7 @@ def show_data_in_window(df, original_file_name):
     window = tk.Tk()
     window.title("Перевірка конкуренції")
     window.geometry("{0}x{1}+0+0".format(window.winfo_screenwidth(), window.winfo_screenheight()))
-    
+
     menu_frame = ttk.Frame(window)
     menu_frame.pack(side=tk.TOP, fill=tk.X)
     frame = ttk.Frame(window)
